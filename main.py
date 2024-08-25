@@ -14,7 +14,7 @@ def to_markdown(text):
 
 def introduce_bot():
     intro_message = """
-    Hello! I am your AI-powered chatbot. You can ask me anything, and I will do my best to provide helpful information or assistance.
+    Hello! I am your AI-powered chatbot. You can ask me anything, and I will do my best to provide helpful information.
 
     Here are a few things you can do:
     * Ask me questions on any topic.
