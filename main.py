@@ -1,64 +1,47 @@
-import pathlib
-import textwrap
-
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import google.generativeai as genai
 
-from IPython.display import display
-from IPython.display import Markdown
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
+# Global variable to store the API key
+api_key = None
+model = None
 
-def to_markdown(text):
-    text = text.replace('•', '  *')
-    return Markdown(textwrap.indent(text, '> ', predicate=lambda _: True))
+@app.route('/api/set-api-key', methods=['POST'])
+def set_api_key():
+    global api_key, model
+    data = request.json
+    api_key = data.get('api_key', '').strip()
 
+    if not api_key:
+        return jsonify({'error': 'API key is required.'}), 400
 
-def introduce_bot():
-    intro_message = """
-    Hello! I am your AI-powered chatbot. You can ask me anything, and I will do my best to provide helpful information.
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        return jsonify({'message': 'API key set successfully.'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
-    Here are a few things you can do:
-    * Ask me questions on any topic.
-    * Type 'help' to see a list of commands.
-    * Type 'quit' to end our session.
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    global model
+    if not model:
+        return jsonify({'error': 'API key not set. Please set the API key first using /api/set-api-key.'}), 400
 
-    Let's get started! What would you like to know today?
-    """
-    print(intro_message)
-
-
-def show_help():
-    help_message = """
-    Here are some commands you can use:
-    * 'help' - Show this help message.
-    * 'quit' - End the session.
-
-    You can ask me anything by simply typing your question or request.
-    """
-    print(help_message)
-
-
-# Configure the API
-GOOGLE_API_KEY = input("Enter your Google API key: ").strip()
-genai.configure(api_key=GOOGLE_API_KEY)
-
-# Initialize the model
-model = genai.GenerativeModel('gemini-1.5-flash')
-
-# Introduce the chatbot
-introduce_bot()
-
-# Start the main loop
-quit_ = False
-while not quit_:
-    input_prompt = input("\nEnter your prompt: ").strip()
+    data = request.json
+    input_prompt = data.get('prompt', '').strip()
 
     if not input_prompt:
-        print("Please enter a valid prompt or type 'help' for assistance.")
-    elif input_prompt.lower() == "quit":
-        print("Your session has ended. Goodbye!")
-        quit_ = True
-    elif input_prompt.lower() == "help":
-        show_help()
-    else:
+        return jsonify({'error': 'Please enter a valid prompt.'}), 400
+
+    try:
         response = model.generate_content(input_prompt)
-        print(response.text)
+        return jsonify({'response': response.text}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
