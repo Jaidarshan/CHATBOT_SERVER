@@ -1,5 +1,3 @@
-# main.py
-
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -41,17 +39,19 @@ def chat():
 
     data = request.json
     input_prompt = data.get('prompt', '').strip()
+    # Get the history from the request, default to an empty list
+    history_data = data.get('history', [])
 
     if not input_prompt:
         return jsonify({'error': 'Please enter a valid prompt.'}), 400
 
     try:
+        # Image generation logic remains the same (it doesn't need history)
         if input_prompt.lower().startswith("generate image of"):
             image_prompt = input_prompt[len("generate image of"):].strip()
-
-    
+            
             if not hf_api_token:
-                 return jsonify({'error': 'Hugging Face Token not set. Please set it via the API key modal.'}), 400
+                return jsonify({'error': 'Hugging Face Token not set. Please set it via the API key modal.'}), 400
 
             API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
             headers = {"Authorization": f"Bearer {hf_api_token}"} 
@@ -67,14 +67,23 @@ def chat():
             return jsonify({'image_url': image_data_url}), 200
         
         else:
-            gemini_response = model.generate_content(input_prompt)
+            formatted_history = []
+            for entry in history_data:
+                role = 'user' if entry['type'] == 'user' else 'model'
+                if 'text' in entry:
+                    formatted_history.append({'role': role, 'parts': [entry['text']]})
+
+            chat_session = model.start_chat(history=formatted_history)
+
+            gemini_response = chat_session.send_message(input_prompt)
+            
             return jsonify({'response': gemini_response.text}), 200
 
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 503:
             return jsonify({'error': 'The image model is currently loading, please try again in 20-30 seconds.'}), 503
         elif e.response.status_code == 401:
-             return jsonify({'error': 'Authentication failed. Please check your Hugging Face token.'}), 401
+            return jsonify({'error': 'Authentication failed. Please check your Hugging Face token.'}), 401
         return jsonify({'error': f"Error calling Image API: {str(e)}"}), 500
     except Exception as e:
         return jsonify({'error': f"An error occurred: {str(e)}"}), 500
